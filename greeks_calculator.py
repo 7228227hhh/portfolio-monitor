@@ -1,6 +1,7 @@
 """
 衍生指标计算模块
 计算GEX、DIX、偏度、期限结构等聚合指标
+这个模块就是在统一输入dataframe的前提之下，统一输出指标
 """
 import pandas as pd
 import numpy as np
@@ -39,10 +40,10 @@ def calculate_term_structure_slope(df: pd.DataFrame) -> float:
     if df.empty:
         return np.nan
 
-    expiry_groups = df.groupby("expiry_date")
+    expiry_groups = df.groupby("expiry_date") #这里面df.gourpby()返回的是一个dataframegroupby对象
     atm_ivs = []
 
-    for expiry, group in expiry_groups:
+    for expiry, group in expiry_groups:#这是遍历分组对象的经典写法，分组对象是一个组对应一个df
         iv = calculate_atm_iv(group)
         if not np.isnan(iv):
             atm_ivs.append({
@@ -88,5 +89,5 @@ def calculate_all_metrics(df: pd.DataFrame) -> Dict[str, Any]:
         "gex": calculate_gex(df,multiplier=100),
         "dix": calculate_dix(df,multiplier=100),
         "num_options": len(df),
-        "num_expiries": df["expiry_date"].nunique(),
+        "num_expiries": df["expiry_date"].nunique(), #df['列名'].nunique是代表统计列名为列名的数量
     }

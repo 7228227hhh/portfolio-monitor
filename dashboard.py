@@ -27,7 +27,7 @@ HISTORY_SIZE = 100
 latest_data = {symbol: {} for symbol in SYMBOLS}
 
 # 每个标的历史数据
-history_data = {symbol: deque(maxlen=HISTORY_SIZE) for symbol in SYMBOLS}
+history_data = {symbol: deque(maxlen=HISTORY_SIZE) for symbol in SYMBOLS}#这里history用deque存储，一次存储的长度是maxlen=HISTORY_SIZE
 
 # 数据锁
 data_lock = threading.Lock()
@@ -46,10 +46,10 @@ REFRESH_RATE = 2
 # ========== 辅助函数 ==========
 def format_spot_price(spot: float) -> str:
     """根据价格量级智能格式化现货价格"""
-    if spot is None or (isinstance(spot, float) and spot != spot):
+    if spot is None or (isinstance(spot, float) and spot != spot): #逻辑运算符里面and在or之前，spot!=spot是为了排除Nan
         return "N/A"
     if spot >= 1000:
-        return f"${spot:,.2f}"
+        return f"${spot:,.2f}"#这里面,是指的千分位，.2f即保留两位小数字
     elif spot >= 1:
         return f"${spot:,.4f}"
     elif spot >= 0.001:
@@ -72,7 +72,7 @@ def format_greek(value: float) -> str:
 
 def get_latest(symbol, key, default=None):
     """安全获取最新数据"""
-    with data_lock:
+    with data_lock:#这个是with语句在线程锁的应用，锁竞争机制：多个线程抢一个锁，导致部分线程被迫等待的情况,with data_lock就是尝试获取锁，这个写法就是额外在函数外写一个threading.Lock(),作为全局锁，保护所有函数内的读写操作
         data = latest_data.get(symbol, {})
         if key == 'metrics':
             return data.get('metrics', {})
@@ -92,12 +92,53 @@ def start_consumer():
         try:
             consumer = KafkaConsumer(
                 KAFKA_TOPIC,
-                bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
-                auto_offset_reset='latest',
-                enable_auto_commit=True,
-                value_deserializer=lambda x: json.loads(x.decode('utf-8')),
-                key_deserializer=lambda x: x.decode('utf-8') if x else None,
+                bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS, #Kafka的集群地址（broker的地址，这里面只用了一个）
+                auto_offset_reset='latest', #没有偏移量的时候从哪里开始读，偏移量可以理解成书的页码
+                enable_auto_commit=True,#是否自动提交偏移量
+                value_deserializer=lambda x: json.loads(x.decode('utf-8')),#消息值反序列化：把kafka种的字节数据给转化成python对象
+                key_deserializer=lambda x: x.decode('utf-8') if x else None,#消息键反序列化
             )
+            """注意，Kafka 会把你 Producer 生产的数据保存下来，而且是自动的、持久化到磁盘的保存。你今天 Producer 发出去的数据，Kafka 默认会帮你在服务器上保留一周（7天）。
+
+⚙️ Kafka 是如何存储数据的？
+当你启动 Producer 发送消息时，Kafka 并不会直接把数据扔给 Consumer 就删除，而是以追加的方式写入到硬盘上的日志文件（log文件）里。这个行为就像你在一个本子上不断往后面记录新内容，不会去改动前面的字。
+
+为了让你更清楚地了解 Kafka 的“自动保存”，我把它总结成了一个表格：
+
+存储特性	具体说明	为什么重要
+自动持久化	Producer 发送的消息会被立刻写入磁盘，而不只是在内存里停留。	断电/重启不丢数据：即使服务器宕机或重启，你之前发送的数据依然存在。
+存储路径	数据会保存在 Broker 配置文件 server.properties 中 log.dirs 参数指定的文件夹下。	方便管理：你可以找到数据文件，也可以将目录配置到有足够空间的大硬盘上。
+默认保存时长	默认保存 168 小时，也就是 7 天。	自动清理：7 天前的数据会被自动删除，你不用操心硬盘被写满。
+存储上限	单个日志段文件的默认大小是 1GB (log.segment.bytes=1073741824)。	防止文件过大：当一个文件达到 1GB 后，Kafka 会关闭它并创建新文件来写入后续数据。
+🧠 结合 Kafka 消费者工作原理
+理解了这一点，就能明白你之前对消费者配置的疑问了：
+
+数据持久存在：auto_offset_reset 配置之所以能生效，就是因为历史数据（只要没过保留期）还在硬盘里存着。
+
+“滞后”的含义：监控工具中显示的 Lag（滞后），指的就是 Consumer 当前的 offset 和硬盘里最新一条消息的 offset 之间的差距。Lag 越大，说明消费者处理速度越跟不上生产速度。
+这里面需要注意：
+重新打开 Producer（生产者）不会导致 Consumer（消费者）从头开始接收。
+
+只要你的 Consumer 使用的是相同的 group.id，并且 Kafka 中还保留着 offset = 50 这个位置，Consumer 重启后会从 51 接着读，绝对不会去读 earliest（也就是 0）。
+
+下面我分三个关键点来解释为什么：
+
+1. Producer 和 Consumer 是隔离的
+Producer 只管往尾巴写数据（offset 不断增大）。
+
+Consumer 只管根据自己记录的“书签”（offset）去读。
+
+因果关系：Producer 重启、关掉、或者换个电脑运行，对 Consumer 的“书签”没有任何影响。Consumer 根本不关心 Producer 是否在线。
+
+2. auto_offset_reset 只在一种情况下触发
+auto_offset_reset 并不是每次重启都会触发的，它只在找不到提交的 offset 时才会生效。
+
+什么时候找不到？
+
+第一次启动：这个 group.id 从来没有连接过 Kafka，服务器上没有记录。
+过期被删：Consumer 停机太久（比如停机了 10 天），Kafka 根据保留策略（默认 7 天）把 offset = 50 那条数据连同它所在的文件一起删掉了。服务器发现“你上次读到 50？但这个位置已经没东西了”，于是触发重置。
+            """
+
             consumer_running = True
             print(f"[Dashboard] ✅ Kafka消费者已启动")
 

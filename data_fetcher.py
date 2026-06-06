@@ -67,11 +67,11 @@ def start_websocket_thread():
 
     def run_loop():
         global _loop
-        _loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(_loop)
-        _loop.run_until_complete(subscribe_spot_price())
+        _loop = asyncio.new_event_loop()  #创建新的事件循环
+        asyncio.set_event_loop(_loop)   #设置为当前线程的事件循环
+        _loop.run_until_complete(subscribe_spot_price())  #运行异步函数
 
-    thread = threading.Thread(target=run_loop, daemon=True)
+    thread = threading.Thread(target=run_loop, daemon=True) #damon=true是表示守护线程
     thread.start()
 
 
@@ -82,7 +82,7 @@ async def subscribe_spot_price():
     uri = "wss://stream.binance.com:9443/ws"
     proxy = Proxy.from_url("http://127.0.0.1:1080")
 
-    async with proxy_connect(uri, proxy=proxy) as ws:
+    async with proxy_connect(uri, proxy=proxy) as ws:#只有实现了上下文管理协议的对象才能用with包括：__enter__(self)和__exit__(self,exc_type,exc_val,exc_tb)这两个方法
         subscribe_msg = {
             "method": "SUBSCRIBE",
             "params": [
@@ -93,6 +93,44 @@ async def subscribe_spot_price():
         }
         await ws.send(json.dumps(subscribe_msg))
         print("WebSocket: 已订阅合约实时价格")
+        """这里有一个例子可以说明await这个异步等待方法的用法：
+        import asyncio
+import time
+
+async def task_唱歌():
+    for i in range(3):
+        print(f"   🎤 唱歌中... 第{i+1}句")
+        await asyncio.sleep(0.5)  # 唱每句要0.5秒
+    return "唱完了"
+
+async def task_等待咖啡():
+    print("☕ 点了一杯咖啡")
+    await asyncio.sleep(2)  # 等2秒咖啡做好
+    print("☕ 拿到咖啡了")
+    return "咖啡好了"
+
+async def main():
+    print("=== 开始 ===")
+    
+    # 同时开始两个任务
+    咖啡任务 = asyncio.create_task(task_等待咖啡())
+    唱歌任务 = asyncio.create_task(task_唱歌())
+    
+    # 等待两个都完成
+    await 咖啡任务
+    await 唱歌任务
+
+asyncio.run(main())
+
+
+输出：=== 开始 ===
+☕ 点了一杯咖啡
+   🎤 唱歌中... 第1句
+   🎤 唱歌中... 第2句
+   🎤 唱歌中... 第3句
+☕ 拿到咖啡了
+        
+        """
 
         async for message in ws:
             data = json.loads(message)

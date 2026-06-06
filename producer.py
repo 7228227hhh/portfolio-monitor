@@ -99,7 +99,7 @@ def produce_loop():
                     "symbol": symbol,
                     "spot": safe_float(metrics["spot"]),
                     "metrics": {
-                        "atm_iv": safe_float(metrics["atm_iv"]),
+                        "atm_iv": safe_float(metrics["atm_iv"]), 
                         "skew_25d": safe_float(metrics["skew_25d"]),
                         "term_slope": safe_float(metrics["term_slope"]),
                         "gex": safe_float(metrics["gex"], 0),
@@ -112,6 +112,20 @@ def produce_loop():
                         "net_theta": safe_float(combo_greeks["net_theta"], 0),
                     },
                 }
+                """当你收到一条消息时，msg 对象包含以下重要信息：
+
+属性	            类型	            说明	                    示例值
+msg.topic	    str	            消息来自哪个主题	        'stock_prices'
+msg.partition	int	            来自哪个分区	            0
+msg.offset	    int	            消息的偏移量（位置）        12345
+msg.key	        bytes/str	    消息的键（用于分区）        b'AAPL' 或 'AAPL'
+msg.value	    bytes/str	    消息的内容（最重要的部分）	b'{"price": 150.5}'
+msg.timestamp	int	            时间戳（毫秒）	            1698000000000
+msg.timestamp_type int	        时间戳类型	            0(CreateTime) 或 1(LogAppendTime)
+msg.headers	    list            消息头（元数据）	        [('content-type', b'json')]
+msg.serialized_key_size	int	    序列化后的键大小	        4
+msg.serialized_value_size int	序列化后的值大小	        256
+                """
 
                 producer.send(KAFKA_TOPIC, key=symbol.encode(), value=message)
 
