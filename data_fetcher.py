@@ -22,7 +22,7 @@ BNB_current_spot_price = None
 XRP_current_spot_price = None
 DOGE_current_spot_price = None
 SOL_current_spot_price = None
-spot_price_ready = threading.Event()
+spot_price_ready = threading.Event() #这个东西用的时候开始需要spot_price_ready.set()必须搭配threading.Event().wait()这个方法同时出现，一个用来通知就绪，一个用来阻塞等待，属于线程同步方法，避免在事件没有准备好的时候逻辑就进行计算
 _ws_started = False
 _loop = None
 

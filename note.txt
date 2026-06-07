@@ -1,0 +1,151 @@
+
+## 一句话先记住核心区别
+
+> **Bind Mount：你手动指定用电脑上的哪个文件夹**  
+> **Volume：让 Docker 自己找个地方存，你只负责起个名字**  
+> **tmpfs：存在内存里，容器停了就没了**
+
+---
+
+## 一、Bind Mount（绑定挂载）
+
+**你指定电脑上的一个文件夹，让容器能看到它。**
+
+```yaml
+volumes:
+  - D:/my_code:/app
+```
+
+意思是：
+- 左边 `D:/my_code`：你电脑上的文件夹
+- 右边 `/app`：容器里的路径
+
+**特点：**
+- 文件夹位置**你说了算**
+- 改你电脑上的文件 → 容器里同步变
+- 容器删了，文件还在你电脑上
+
+**场景：** 开发时用，改代码不用重建容器
+
+---
+
+## 二、Volume（卷）
+
+**你给 Docker 一个名字，Docker 自己找地方存数据。**
+
+```yaml
+volumes:
+  - kafka_data:/var/lib/kafka/data
+
+volumes:
+  kafka_data:  # 只写一个名字，不写路径
+```
+
+意思是：
+- `kafka_data`：你给这个卷起个名字
+- Docker 在自己的管理目录里找个地方存（通常在 `C:\ProgramData\Docker\volumes\`）
+
+**特点：**
+- 你**不需要知道**文件存在电脑的哪个具体位置
+- Docker 自动管理，不会不小心删错
+- 容器删了，卷还在，下次挂载回来数据还在
+
+**场景：** 数据库、Kafka 等需要持久化的数据
+
+---
+
+## 三、tmpfs（临时文件系统）
+
+**数据只存在内存里，容器一停就没了。**
+
+```yaml
+services:
+  app:
+    tmpfs:
+      - /tmp
+```
+
+意思是：
+- 容器内的 `/tmp` 目录存在内存里
+- 容器重启 → 数据消失
+
+**特点：**
+- 速度极快（内存读写）
+- 不占用硬盘
+- 容器停 = 数据丢
+
+**场景：** 临时缓存、不需要保存的中间数据
+
+---
+
+## 四、表格里的语法解释
+
+| 类型 | 语法 | 举例 |
+|------|------|------|
+| **Bind Mount** | `电脑路径:容器路径` | `D:/data:/app/data` |
+| **Volume** | `卷名:容器路径` | `my_data:/app/data` |
+| **tmpfs** | `容器路径` | `/tmp` |
+
+**看左边就知道了数据存在哪：**
+
+```yaml
+# Bind Mount：左边是电脑路径（有盘符或 ./）
+- D:/data:/app/data      # Windows 盘符
+- ./local:/app/data      # 当前目录下的 local
+
+# Volume：左边是名字（没有路径分隔符）
+- kafka_data:/app/data   # Docker 管理
+
+# tmpfs：没有左边，只有右边
+- /tmp                   # 只写容器路径
+```
+
+---
+
+## 五、真实例子对比
+
+假设你在 `D:/kafka` 有个配置文件：
+
+### Bind Mount 写法
+```yaml
+volumes:
+  - D:/kafka/server.properties:/etc/kafka/server.properties
+```
+→ 文件就在 `D:/kafka/server.properties`，你找得到、改得了
+
+### Volume 写法
+```yaml
+volumes:
+  - kafka_config:/etc/kafka
+
+volumes:
+  kafka_config:
+```
+→ 文件在 Docker 自己管的地方（`C:\ProgramData\Docker\volumes\kafka_config\`），你平时看不到
+
+### tmpfs 写法
+```yaml
+tmpfs:
+  - /tmp/cache
+```
+→ 数据在内存里，重启就没了
+
+---
+
+## 六、什么时候用哪个？
+
+| 场景 | 推荐 | 原因 |
+|------|------|------|
+| 开发时改代码 | Bind Mount | 改完立即生效 |
+| 数据库/消息队列 | Volume | 数据要持久化，但不需手动管理路径 |
+| 临时文件/缓存 | tmpfs | 速度快，不需要保存 |
+
+---
+
+## 七、一句话总结
+
+> **Bind Mount = 你指定文件夹**  
+> **Volume = Docker 指定文件夹**  
+> **tmpfs = 内存里，不保存**
+
+你现在的 Kafka 配置如果用挂载，应该用 **Volume**（数据持久化）或 **Bind Mount**（调试配置）。

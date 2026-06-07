@@ -3,13 +3,13 @@ services:
   kafka:
     image: confluentinc/cp-kafka:7.6.0
     ports:
-      - "9092:9092"
-      - "9101:9101"
+      - "9092:9092" #业务端口
+      - "9101:9101" #JMX监控端口
     environment:
       KAFKA_NODE_ID: 1      #当前节点的唯一id，集群里面每个节点的id不同
       KAFKA_PROCESS_ROLES: 'broker,controller'    #broker负责消息的读写，controller负责集群管理（leader选举等）
       KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:9093'#集群中所有controller节点列表格式
-      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER' #controller之间通信所用的监听器名称
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER' #controller之间通信所用的监听器名称，监听器由一个命名后的端口加上协议组成
       KAFKA_LISTENERS: 'PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093'#kafka监听的端口，9092给客户端(生产者和消费者）,9093给controller用
       KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://localhost:9092' #告诉客户端连接哪个端口
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT' #监听器使用的安全协议，plaintext=数据在网络中原样传输，不加密，不认证，不签名
@@ -18,6 +18,6 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1 #__consumer_offsets：记录每个消费者组消费到了哪个位置，这个参数的作用是说明__consumer_offsets 主题的副本因子为 1。
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1 #__transaction_state 主题的最小同步副本数为 1。这是配合副本因子用的。它规定写入事务状态时，至少需要多少个副本确认才算成功。
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1  # __transaction_state 主题的副本因子为 1。这里表示事务状态只存在 1 台 Broker 上。
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'#自动创建不存在的topic(测试为true，生产环境改成false)
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'#自动创建不存在的topic(测试为true，生产环境改成false)#当producer或者是controller尝试给一个不存在的topic发送或者消费消息的时候，Kafka会自动创建这个topic
       KAFKA_JMX_PORT: 9101 #开启一个端口（9101），让监控工具（如 Prometheus、JConsole）可以连接进来，查看 Kafka 的内部状态。JMX 是 Java 虚拟机（JVM）自带的管理和监控框架。Kafka 用 Java 写的，所以天然支持 JMX
-      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'#Kafka集群的唯一标识符
